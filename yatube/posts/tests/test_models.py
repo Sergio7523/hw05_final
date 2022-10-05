@@ -1,7 +1,7 @@
+from django.conf import settings
 from django.test import TestCase
 
 from ..models import Group, Post, User
-from ..constants import SEVERAL_TEXT_CHARACTERS
 
 
 class PostModelTest(TestCase):
@@ -26,7 +26,7 @@ class PostModelTest(TestCase):
         post = PostModelTest.post
         fields = {
             group: group.title,
-            post: post.text[:SEVERAL_TEXT_CHARACTERS]
+            post: post.text[:settings.SEVERAL_TEXT_CHARACTERS]
         }
         for field, expected_value in fields.items():
             with self.subTest(field=field):
