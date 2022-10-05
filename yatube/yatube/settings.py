@@ -152,3 +152,7 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
     }
 }
+
+POSTS_AMOUNT = 10
+
+SEVERAL_TEXT_CHARACTERS = 15

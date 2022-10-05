@@ -1,6 +1,7 @@
 from django.test import TestCase
+
 from ..models import Group, Post, User
-from ..constants import FIRST_15_TEXT_SYMBOLS
+from ..constants import SEVERAL_TEXT_CHARACTERS
 
 
 class PostModelTest(TestCase):
@@ -25,7 +26,7 @@ class PostModelTest(TestCase):
         post = PostModelTest.post
         fields = {
             group: group.title,
-            post: post.text[:FIRST_15_TEXT_SYMBOLS]
+            post: post.text[:SEVERAL_TEXT_CHARACTERS]
         }
         for field, expected_value in fields.items():
             with self.subTest(field=field):
@@ -34,7 +35,6 @@ class PostModelTest(TestCase):
     def test_verbose_name(self):
         """verbose_name в полях совпадает с ожидаемым."""
 
-        post = PostModelTest.post
         field_verboses = {
             'text': 'Текст поста',
             'pub_date': 'Дата публикации',
@@ -44,19 +44,18 @@ class PostModelTest(TestCase):
         for field, expected_value in field_verboses.items():
             with self.subTest(field=field):
                 self.assertEqual(
-                    post._meta.get_field(field).verbose_name, expected_value
+                    Post._meta.get_field(field).verbose_name, expected_value
                 )
 
     def test_help_text(self):
         """help_text в полях совпадает с ожидаемым."""
 
-        post = PostModelTest.post
         field_help_texts = {
             'text': 'Введите текст поста',
             'group': 'Группа, к которой будет относиться пост'
         }
         for field, expected_value in field_help_texts.items():
             with self.subTest(field=field):
-                self.assertAlmostEqual(
-                    post._meta.get_field(field).help_text, expected_value
+                self.assertEqual(
+                    Post._meta.get_field(field).help_text, expected_value
                 )
