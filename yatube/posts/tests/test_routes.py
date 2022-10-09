@@ -33,7 +33,7 @@ URL_ADD_COMMENT_PAGE = urljoin(URL_POST_DETAIL_PAGE, 'comment/')
 
 class PostsURLTests(TestCase):
 
-    def test_1(self):
+    def test_routes(self):
         links = {
             'posts:index': (URL_MAIN_PAGE, None),
             'posts:group_list': (URL_GROUP_LIST_PAGE, {'slug': GROUP_SLUG}),
