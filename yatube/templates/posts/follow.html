@@ -6,9 +6,9 @@
   <div class="container py-5">     
     <h1>Подписки</h1>
     {% include 'includes/switcher.html' with follow=True %}
-      {% for post in page_obj %}
-        {% include 'includes/post.html' %}
-          {% if not forloop.last %}<hr>{% endif %}
-      {% endfor %}
+    {% for post in page_obj %}
+      {% include 'includes/post.html' %}
+      {% if not forloop.last %}<hr>{% endif %}
+    {% endfor %}
     {% include 'includes/paginator.html' %}
 {% endblock %}

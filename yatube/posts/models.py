@@ -11,7 +11,9 @@ class Group(models.Model):
         max_length=200,
         verbose_name='Заголовок'
     )
-    slug = models.SlugField(unique=True, verbose_name='Слаг')
+    slug = models.SlugField(
+        unique=True, verbose_name='ссылка на страницу группы'
+    )
     description = models.TextField(verbose_name='Описание')
 
     def __str__(self):
@@ -83,6 +85,7 @@ class Comment(models.Model):
     class Meta:
         verbose_name = 'Комментарий',
         verbose_name_plural = 'Комментарии'
+        ordering = ('-created',)
 
 
 class Follow(models.Model):
@@ -90,7 +93,7 @@ class Follow(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name='follower',
-        verbose_name='Пользователь'
+        verbose_name='Подписчик'
     )
     author = models.ForeignKey(
         User,
@@ -110,4 +113,4 @@ class Follow(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.user} подписан на {self.author}'
+        return f'{self.user.username} подписан на {self.author.username}'

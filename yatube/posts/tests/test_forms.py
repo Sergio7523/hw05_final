@@ -8,7 +8,8 @@ from django.conf import settings
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from ..models import Comment, Group, Post, User
+from posts.apps import PostsConfig
+from posts.models import Comment, Group, Post, User
 
 USER_USERNAME = 'TestUser'
 
@@ -31,6 +32,7 @@ SMALL_GIF = (
 )
 
 IMAGE_NAME = 'small.gif'
+SECOND_IMAGE_NAME = 'small2.gif'
 
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
@@ -41,6 +43,7 @@ class PostCreateFormTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = User.objects.create_user(username='TestUser')
+        cls.another_user = User.objects.create_user(username='TestUser2')
         cls.group = Group.objects.create(
             title='Тестовая группа',
             slug='test-slug',
@@ -53,104 +56,149 @@ class PostCreateFormTests(TestCase):
             content_type='image/gif'
         )
         cls.uploaded_second = SimpleUploadedFile(
-            name='small2.gif',
+            name=SECOND_IMAGE_NAME,
             content=SMALL_GIF,
             content_type='image/gif'
         )
         cls.post = Post.objects.create(
             author=cls.user,
             text='Тестовый пост',
+            group=cls.group
         )
         cls.URL_POST_EDIT_PAGE = reverse(
             'posts:post_edit',
             kwargs={'post_id': cls.post.pk}
         )
+        cls.guest_client = Client()
+        cls.authorized_client = Client()
+        cls.authorized_client.force_login(PostCreateFormTests.user)
+        cls.another_client = Client()
+        cls.another_client.force_login(PostCreateFormTests.another_user)
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
-    def setUp(self):
-        self.guest_client = Client()
-        self.authorized_client = Client()
-        self.authorized_client.force_login(PostCreateFormTests.user)
-
     def test_create_post(self):
         post_count = Post.objects.count()
+        form_data = {
+            'text': 'Текст созданного поста',
+            'group': PostCreateFormTests.group.id,
+            'image': PostCreateFormTests.uploaded,
+        }
+        id_list = Post.objects.values_list('id', flat=True).order_by('id')
+        self.assertEqual(len(id_list), 1)
+        first_post_id = id_list[0]
+        response = self.authorized_client.post(
+            URL_POST_CREATE_PAGE,
+            data=form_data,
+            follow=True
+        )
+        post_list = Post.objects.exclude(id=first_post_id)
+        post_list_ids = post_list.values_list('id', flat=True).order_by('id')
+        self.assertEqual(len(post_list_ids), 1)
+        created_post_id = post_list_ids[0]
+        created_post = Post.objects.get(id=created_post_id)
+        self.assertEqual(Post.objects.count(), post_count + 1)
+        self.assertEqual(created_post.text, form_data['text'])
+        self.assertEqual(created_post.group.id, form_data['group'])
+        self.assertEqual(created_post.author, PostCreateFormTests.user)
+        self.assertEqual(
+            created_post.image, f'{PostsConfig.name}/{IMAGE_NAME}'
+        )
+        self.assertRedirects(response, URL_PROFILE_PAGE)
+
+    def test_guest_client_can_not_create_post(self):
+        posts_amount_before_creation_attempt = Post.objects.all().count()
         form_data = {
             'text': 'Тестовый текст',
             'group': PostCreateFormTests.group.id,
             'image': PostCreateFormTests.uploaded,
         }
-        response = self.authorized_client.post(
-            reverse('posts:post_create'),
-            data=form_data,
-            follow=True
-        )
-        created_post = Post.objects.latest('pk')
-        self.assertEqual(Post.objects.count(), post_count + 1)
-        self.assertEqual(created_post.group.id, form_data['group'])
-        self.assertEqual(created_post.author, PostCreateFormTests.user)
-        self.assertEqual(created_post.image, f'posts/{IMAGE_NAME}')
-        self.assertRedirects(response, URL_PROFILE_PAGE)
-
-    def test_guest_client_can_not_create_post(self):
-        form_data = {
-            'text': 'Тестовый текст',
-            'group': PostCreateFormTests.group.id,
-        }
         response = self.guest_client.post(
-            reverse('posts:post_create'),
+            URL_POST_CREATE_PAGE,
             data=form_data,
             follow=True,
         )
+        posts_amount_after_creation_attempt = Post.objects.all().count()
         self.assertRedirects(response, URL_REDIRECT_POST_CREATE_PAGE)
+        self.assertEqual(
+            posts_amount_before_creation_attempt,
+            posts_amount_after_creation_attempt
+        )
 
     def test_edit_post(self):
-        post = Post.objects.create(
-            author=PostCreateFormTests.user,
-            text='Тестовый текст',
-            group=PostCreateFormTests.group,
+        group2 = Group.objects.create(
+            title='Тестовая группа2',
+            slug='test-slug2',
+            description='Тестовое описание2',
         )
         form_data_edit = {
             'text': 'Тестовый текст 1',
-            'group': '',
+            'group': group2.id,
             'image': PostCreateFormTests.uploaded_second
         }
         self.authorized_client.post(
-            reverse('posts:post_edit', kwargs={'post_id': post.pk}),
+            PostCreateFormTests.URL_POST_EDIT_PAGE,
             data=form_data_edit,
             follow=True
         )
+        post = Post.objects.get(id=PostCreateFormTests.post.id)
+        self.assertEqual(post.text, form_data_edit['text'])
+        self.assertEqual(post.group.id, form_data_edit['group'])
+        self.assertEqual(post.author, PostCreateFormTests.user)
         self.assertEqual(
-            Post.objects.get(id=post.id).text, form_data_edit['text']
+            post.image, f'{PostsConfig.name}/{form_data_edit["image"]}'
         )
-        self.assertEqual(Post.objects.get(id=post.id).group, None)
-        self.assertEqual(
-            Post.objects.get(id=post.id).image, 'posts/small2.gif'
+
+    def test_guest_client_and_not_author_can_not_edit_post(self):
+        clients_list = [self.guest_client, self.another_client]
+
+        group2 = Group.objects.create(
+            title='Тестовая группа2',
+            slug='test-slug2',
+            description='Тестовое описание2',
         )
+        form_data_edit = {
+            'text': 'Тестовый текст 1',
+            'group': group2.id,
+            'image': PostCreateFormTests.uploaded_second
+        }
+        for client in clients_list:
+            client.post(
+                PostCreateFormTests.URL_POST_EDIT_PAGE,
+                data=form_data_edit,
+                follow=True
+            )
+            post = Post.objects.get(id=PostCreateFormTests.post.id)
+            self.assertNotEqual(post.text, form_data_edit['text'])
+            self.assertNotEqual(post.group.id, form_data_edit['group'])
+            self.assertEqual(post.author, PostCreateFormTests.user)
+            self.assertNotEqual(
+                post.image, f'{PostsConfig.name}/{form_data_edit["image"]}'
+            )
 
     def test_create_edit_posts_show_correct_form(self):
         """Шаблоны post_create и post_edit сформированы
          с правильным контекстом.
         """
 
-        responses_pages_list = [
-            self.authorized_client.get(URL_POST_CREATE_PAGE),
-            self.authorized_client.get(PostCreateFormTests.URL_POST_EDIT_PAGE)
+        url_list = [
+            URL_POST_CREATE_PAGE, PostCreateFormTests.URL_POST_EDIT_PAGE
         ]
-
         form_fields = {
             'text': forms.fields.CharField,
             'group': forms.fields.ChoiceField,
+            'image': forms.fields.ImageField
         }
-        for response in responses_pages_list:
+        for url in url_list:
             for value, expected in form_fields.items():
-                with self.subTest(value=value):
-                    form_field = (response.context.get('form').
-                                  fields.get(value))
-                    self.assertIsInstance(form_field, expected)
+                response = self.authorized_client.get(url)
+                form_field = (
+                    response.context.get('form').fields.get(value)
+                )
+                self.assertIsInstance(form_field, expected)
 
 
 class PostCreateCommentTests(TestCase):
@@ -170,23 +218,16 @@ class PostCreateCommentTests(TestCase):
         )
         cls.comment_data = {
             'text': 'Тестовый комментарий',
-            'author': PostCreateCommentTests.user
         }
         cls.URL_ADD_COMMENT_PAGE = reverse(
             'posts:add_comment', kwargs={'post_id': cls.post.pk}
         )
-        cls.URL_COMMENT_PAGE = reverse(
-            'posts:add_comment',
-            kwargs={'post_id': PostCreateCommentTests.post.pk}
-        )
         cls.URL_REDIRECT_COMMENT_PAGE = (
-            f'{URL_LOGIN_PAGE}?next={cls.URL_COMMENT_PAGE}'
+            f'{URL_LOGIN_PAGE}?next={cls.URL_ADD_COMMENT_PAGE}'
         )
-
-    def setUp(self):
-        self.guest_client = Client()
-        self.authorized_client = Client()
-        self.authorized_client.force_login(PostCreateCommentTests.user)
+        cls.guest_client = Client()
+        cls.authorized_client = Client()
+        cls.authorized_client.force_login(PostCreateCommentTests.user)
 
     def test_guest_client_can_not_add_comment(self):
         response = self.guest_client.post(
@@ -196,6 +237,7 @@ class PostCreateCommentTests(TestCase):
         self.assertRedirects(
             response, PostCreateCommentTests.URL_REDIRECT_COMMENT_PAGE
         )
+        self.assertEqual(Comment.objects.all().count(), 0)
 
     def test_add_comment(self):
         self.authorized_client.post(
@@ -203,10 +245,15 @@ class PostCreateCommentTests(TestCase):
             data=PostCreateCommentTests.comment_data,
             follow=True,
         )
-        comment = Comment.objects.get(id=1)
+        comment_list = Comment.objects.all()
+        comments_list_ids = comment_list.values_list(
+            'id', flat=True
+        ).order_by('id')
+        self.assertEqual(len(comments_list_ids), 1)
+        comment_id = comments_list_ids[0]
+        comment = Comment.objects.get(id=comment_id)
         self.assertEqual(
             comment.text, PostCreateCommentTests.comment_data['text']
         )
-        self.assertEqual(
-            comment.author, PostCreateCommentTests.comment_data['author']
-        )
+        self.assertEqual(comment.author, PostCreateCommentTests.user)
+        self.assertEqual(comment.post, PostCreateCommentTests.post)

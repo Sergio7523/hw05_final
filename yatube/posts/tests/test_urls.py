@@ -3,7 +3,7 @@ from http import HTTPStatus
 from django.test import TestCase, Client
 from django.urls import reverse
 
-from ..models import Group, Post, User
+from posts.models import Group, Post, User
 
 GROUP_SLUG = 'test-slug'
 
@@ -43,6 +43,10 @@ URL_REDIRECT_PROFILE_UNFOLLOW_PAGE = (
     f'{URL_LOGIN_PAGE}?next={URL_PROFILE_UNFOLLOW_PAGE}'
 )
 
+URL_REDIRECT_POST_CREATE_PAGE = (
+    f'{URL_LOGIN_PAGE}?next={URL_POST_CREATE_PAGE}'
+)
+
 
 class PostsURLTests(TestCase):
     @classmethod
@@ -67,31 +71,20 @@ class PostsURLTests(TestCase):
             'posts:post_detail',
             kwargs={'post_id': PostsURLTests.post.pk}
         )
-        cls.URL_COMMENT_PAGE = reverse(
-            'posts:add_comment',
-            kwargs={'post_id': PostsURLTests.post.pk}
-        )
-        cls.URL_REDIRECT_POST_CREATE_PAGE = (
-            f'{URL_LOGIN_PAGE}?next={URL_POST_CREATE_PAGE}'
-        )
         cls.URL_REDIRECT_POST_EDIT_PAGE = (
             f'{URL_LOGIN_PAGE}?next={cls.URL_POST_EDIT_PAGE}'
         )
-        cls.URL_REDIRECT_COMMENT_PAGE = (
-            f'{URL_LOGIN_PAGE}?next={cls.URL_COMMENT_PAGE}'
-        )
+        cls.guest_client = Client()
+        cls.authorized_client = Client()
+        cls.authorized_client.force_login(cls.user)
+        cls.not_author_client = Client()
+        cls.not_author_client.force_login(cls.not_author)
 
-    def setUp(self):
-        self.guest_client = Client()
-        self.authorized_client = Client()
-        self.authorized_client.force_login(PostsURLTests.user)
-        self.not_author_client = Client()
-        self.not_author_client.force_login(PostsURLTests.not_author)
+    def test_public_urls_exist_and_accessible(self):
+        """Общедоступные cnраницы доступны любому пользователю, а
+        приватные только авторизованному."""
 
-    def test_public_urls_exist_and_accessible_for_all_users(self):
-        """Общедоступные cnраницы доступны любому пользователю."""
-
-        public_pages_list_and_status = [
+        pages_and_status = [
             [self.guest_client, URL_INDEX_PAGE, HTTPStatus.OK],
             [self.guest_client, URL_GROUP_LIST_PAGE, HTTPStatus.OK],
             [self.guest_client, URL_PROFILE_PAGE, HTTPStatus.OK],
@@ -100,17 +93,7 @@ class PostsURLTests(TestCase):
                 PostsURLTests.URL_POST_DETAIL_PAGE,
                 HTTPStatus.OK
             ],
-            [self.guest_client, URL_UNEXISTING_PAGE, HTTPStatus.NOT_FOUND]
-        ]
-        for client, url, status in public_pages_list_and_status:
-            with self.subTest(client=client, url=url, status=status):
-                response = client.get(url)
-                self.assertEqual(response.status_code, status)
-
-    def test_private_urls_exist_and_accessible_for_authorized_users(self):
-        """Приватные cnраницы доступны только авторизованному пользователю."""
-
-        private_pages_list_and_status = [
+            [self.guest_client, URL_UNEXISTING_PAGE, HTTPStatus.NOT_FOUND],
             [self.authorized_client, URL_POST_CREATE_PAGE, HTTPStatus.OK],
             [
                 self.authorized_client,
@@ -129,7 +112,7 @@ class PostsURLTests(TestCase):
                 HTTPStatus.FOUND
             ]
         ]
-        for client, url, status in private_pages_list_and_status:
+        for client, url, status in pages_and_status:
             with self.subTest(client=client, url=url, status=status):
                 response = client.get(url)
                 self.assertEqual(response.status_code, status)
@@ -173,17 +156,12 @@ class PostsURLTests(TestCase):
             [
                 self.guest_client,
                 URL_POST_CREATE_PAGE,
-                PostsURLTests.URL_REDIRECT_POST_CREATE_PAGE
+                URL_REDIRECT_POST_CREATE_PAGE
             ],
             [
                 self.guest_client,
                 PostsURLTests.URL_POST_EDIT_PAGE,
                 PostsURLTests.URL_REDIRECT_POST_EDIT_PAGE
-            ],
-            [
-                self.guest_client,
-                PostsURLTests.URL_COMMENT_PAGE,
-                PostsURLTests.URL_REDIRECT_COMMENT_PAGE
             ],
             [
                 self.guest_client,
@@ -206,12 +184,12 @@ class PostsURLTests(TestCase):
                 PostsURLTests.URL_POST_DETAIL_PAGE
             ],
             [
-                self.authorized_client,
+                self.not_author_client,
                 URL_PROFILE_FOLLOW_PAGE,
                 URL_PROFILE_PAGE
             ],
             [
-                self.authorized_client,
+                self.not_author_client,
                 URL_PROFILE_UNFOLLOW_PAGE,
                 URL_PROFILE_PAGE
             ]

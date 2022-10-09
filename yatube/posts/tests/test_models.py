@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.test import TestCase
 
-from ..models import Group, Post, User
+from posts.models import Group, Post, User
 
 
 class PostModelTest(TestCase):

@@ -7,10 +7,10 @@
     <h1>Последние обновления на сайте</h1>
     {% load cache %}
     {% cache 20 index_page %}
-    {% include 'includes/switcher.html' with index=True %}
+      {% include 'includes/switcher.html' with index=True %}
       {% for post in page_obj %}
         {% include 'includes/post.html' %}
-          {% if not forloop.last %}<hr>{% endif %}
+        {% if not forloop.last %}<hr>{% endif %}
       {% endfor %}
     {% endcache %}
     {% include 'includes/paginator.html' %}

@@ -1,3 +1,5 @@
+import random
+
 import shutil
 
 import tempfile
@@ -17,7 +19,7 @@ GROUP2_SLUG = 'test-slug2'
 
 USER_USERNAME = 'TestUser'
 
-USER_TO_FOLLOW_USERNAME = 'TestUserToFollow'
+ANOTHER_USER_USERNAME = 'TestUser2'
 
 URL_GROUP_LIST_PAGE = reverse('posts:group_list', kwargs={'slug': GROUP_SLUG})
 
@@ -27,21 +29,27 @@ URL_GROUP2_LIST_PAGE = reverse(
 
 URL_INDEX_PAGE = reverse('posts:index')
 
+SECOND_INDEX_PAGE_URL = f'{URL_INDEX_PAGE}/?page=2'
+
+SECOND_GROUP_LIST_PAGE_URL = f'{URL_GROUP_LIST_PAGE}?page=2'
+
 URL_POST_CREATE_PAGE = reverse('posts:post_create')
 
 URL_PROFILE_PAGE = reverse('posts:profile', kwargs={'username': USER_USERNAME})
 
+SECOND_PROFILE_PAGE_URL = f'{URL_PROFILE_PAGE}?page=2'
+
 URL_FOLLOW_INDEX_PAGE = reverse('posts:follow_index')
 
+SECOND_FOLLOW_INDEX_PAGE_URL = f'{URL_FOLLOW_INDEX_PAGE}?page=2'
+
 URL_PROFILE_FOLLOW_PAGE = reverse(
-    'posts:profile_follow', kwargs={'username': USER_TO_FOLLOW_USERNAME}
+    'posts:profile_follow', kwargs={'username': ANOTHER_USER_USERNAME}
 )
 
 URL_PROFILE_UNFOLLOW_PAGE = reverse(
-    'posts:profile_unfollow', kwargs={'username': USER_TO_FOLLOW_USERNAME}
+    'posts:profile_unfollow', kwargs={'username': ANOTHER_USER_USERNAME}
 )
-
-TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
 SMALL_GIF = (
     b'\x47\x49\x46\x38\x39\x61\x02\x00'
@@ -52,6 +60,8 @@ SMALL_GIF = (
     b'\x0A\x00\x3B'
 )
 
+TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
+
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class PostsPagesTests(TestCase):
@@ -59,10 +69,9 @@ class PostsPagesTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = User.objects.create_user(username=USER_USERNAME)
-        cls.user_to_follow = User.objects.create_user(
-            username=USER_TO_FOLLOW_USERNAME
+        cls.another_user = User.objects.create_user(
+            username=ANOTHER_USER_USERNAME
         )
-        cls.not_follower = User.objects.create_user(username='TestUser3')
         cls.group = Group.objects.create(
             title='Тестовая группа',
             slug=GROUP_SLUG,
@@ -88,20 +97,16 @@ class PostsPagesTests(TestCase):
         cls.POST_DETAIL_PAGE = reverse(
             'posts:post_detail', kwargs={'post_id': PostsPagesTests.post.pk}
         )
+        cls.guest_client = Client()
+        cls.author = Client()
+        cls.author.force_login(cls.user)
+        cls.another = Client()
+        cls.another.force_login(cls.another_user)
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
-
-    def setUp(self):
-        self.guest_client = Client()
-        self.authorized_client = Client()
-        self.authorized_client.force_login(PostsPagesTests.user)
-        self.user_to_follow_client = Client()
-        self.user_to_follow_client.force_login(PostsPagesTests.user_to_follow)
-        self.not_follower_client = Client()
-        self.not_follower_client.force_login(PostsPagesTests.not_follower)
 
     def asserts(self, post):
         self.assertEqual(post.author, PostsPagesTests.post.author)
@@ -113,34 +118,31 @@ class PostsPagesTests(TestCase):
     def test_index_shows_correct_context(self):
         """Шаблон index сформирован с правильным контекстом."""
 
-        response = self.authorized_client.get(URL_INDEX_PAGE)
-        posts_count = Post.objects.all().count()
+        response = self.author.get(URL_INDEX_PAGE)
+        self.assertEqual(len(response.context['page_obj']), 1)
         first_object = response.context['page_obj'][0]
         self.asserts(first_object)
-        self.assertEqual(len(response.context['page_obj']), posts_count)
 
     def test_group_list_shows_correct_context(self):
         """Шаблон group_list сформирован с правильным контекстом."""
 
-        response = self.authorized_client.get(URL_GROUP_LIST_PAGE)
-        posts_count = Post.objects.all().count()
+        response = self.author.get(URL_GROUP_LIST_PAGE)
+        self.assertEqual(len(response.context['page_obj']), 1)
         post = response.context['page_obj'][0]
         self.asserts(post)
-        self.assertEqual(len(response.context['page_obj']), posts_count)
 
     def test_profile_shows_correct_context(self):
         """Шаблон profile сформирован с правильным контекстом."""
 
-        posts_count = Post.objects.all().count()
-        response = self.authorized_client.get(URL_PROFILE_PAGE)
+        response = self.author.get(URL_PROFILE_PAGE)
+        self.assertEqual(len(response.context['page_obj']), 1)
         post = response.context['page_obj'][0]
         self.asserts(post)
-        self.assertEqual(len(response.context['page_obj']), posts_count)
 
     def test_post_detail_shows_correct_context(self):
         """Шаблон post_detail сформирован с правильным контекстом."""
 
-        response = self.authorized_client.get(PostsPagesTests.POST_DETAIL_PAGE)
+        response = self.author.get(PostsPagesTests.POST_DETAIL_PAGE)
         post = response.context['post']
         self.asserts(post)
 
@@ -150,19 +152,26 @@ class PostsPagesTests(TestCase):
         """
 
         following_post = Post.objects.create(
-            author=PostsPagesTests.user_to_follow,
+            author=PostsPagesTests.another_user,
             text='Отслеживаемый пост',
             group=PostsPagesTests.group
         )
         url_list = [URL_GROUP2_LIST_PAGE, URL_FOLLOW_INDEX_PAGE]
         for url in url_list:
-            response = self.authorized_client.get(url)
+            response = self.author.get(url)
             self.assertNotIn(following_post, response.context['page_obj'])
 
-    def test_1(self):
-        """Кол-во постов на страницах."""
+    def test_post_amount_on_pages_with_paginator(self):
+        """Кол-во постов на страницах с паджинатором."""
 
-        AMOUNT_OF_POSTS = settings.POSTS_AMOUNT + 2
+        possible_posts_amount_on_second_page = [
+            i for i in range(1, settings.POSTS_AMOUNT + 1)
+        ]
+        second_page_posts_amount = random.choice(
+            possible_posts_amount_on_second_page
+        )
+
+        AMOUNT_OF_POSTS = settings.POSTS_AMOUNT + second_page_posts_amount
 
         post = Post(
             author=PostsPagesTests.user,
@@ -172,74 +181,71 @@ class PostsPagesTests(TestCase):
         post_list = [post] * AMOUNT_OF_POSTS
         Post.objects.bulk_create(post_list)
 
-        post_following = Post(
-            author=PostsPagesTests.user_to_follow,
-            text='Тестовый пост',
-        )
-        post_list_following = [post_following] * AMOUNT_OF_POSTS
-        Post.objects.bulk_create(post_list_following)
         Follow.objects.create(
-            user=PostsPagesTests.user,
-            author=PostsPagesTests.user_to_follow
+            user=PostsPagesTests.another_user,
+            author=PostsPagesTests.user
         )
+        posts_count = Post.objects.all().count()
+        posts_amount_on_second_page = posts_count - settings.POSTS_AMOUNT
+        if posts_amount_on_second_page >= settings.POSTS_AMOUNT:
+            posts_amount_on_second_page = settings.POSTS_AMOUNT
+
         pages_list = [
-            [URL_INDEX_PAGE, 1, 10],
-            [URL_INDEX_PAGE, 2, 10],
-            [URL_INDEX_PAGE, 3, 5],
-            [URL_PROFILE_PAGE, 1, 10],
-            [URL_PROFILE_PAGE, 2, 3],
-            [URL_GROUP_LIST_PAGE, 1, 10],
-            [URL_GROUP_LIST_PAGE, 2, 3],
-            [URL_FOLLOW_INDEX_PAGE, 1, 10],
-            [URL_FOLLOW_INDEX_PAGE, 2, 2]
+            [URL_INDEX_PAGE, settings.POSTS_AMOUNT],
+            [SECOND_INDEX_PAGE_URL, posts_amount_on_second_page],
+            [URL_PROFILE_PAGE, settings.POSTS_AMOUNT],
+            [SECOND_PROFILE_PAGE_URL, posts_amount_on_second_page],
+            [URL_GROUP_LIST_PAGE, settings.POSTS_AMOUNT],
+            [SECOND_GROUP_LIST_PAGE_URL, posts_amount_on_second_page],
+            [URL_FOLLOW_INDEX_PAGE, settings.POSTS_AMOUNT],
+            [SECOND_FOLLOW_INDEX_PAGE_URL, posts_amount_on_second_page]
         ]
-        for url, page, posts_on_page in pages_list:
+        for url, posts_on_page in pages_list:
             with self.subTest(url=url):
-                response = self.authorized_client.get(url, {'page': page})
+                response = self.another.get(url)
                 self.assertEqual(
                     len(response.context['page_obj']), posts_on_page
                 )
 
     def test_index_cache(self):
-        response = self.authorized_client.get(URL_INDEX_PAGE)
+        response = self.author.get(URL_INDEX_PAGE)
         content = response.content
         Post.objects.all().delete()
-        response_after_deletion = self.authorized_client.get(URL_INDEX_PAGE)
+        response_after_deletion = self.author.get(URL_INDEX_PAGE)
         content_after_deletion = response_after_deletion.content
         self.assertEqual(content, content_after_deletion)
         cache.clear()
-        response_after_cache_clear = self.authorized_client.get(URL_INDEX_PAGE)
+        response_after_cache_clear = self.author.get(URL_INDEX_PAGE)
         content_after_cache_clear = response_after_cache_clear.content
         self.assertNotEqual(content, content_after_cache_clear)
-
-    def test_follow(self):
-        following_post = Post.objects.create(
-            author=PostsPagesTests.user_to_follow,
-            text='Отслеживаемый пост',
-            group=PostsPagesTests.group
-        )
-        Follow.objects.create(
-            user=PostsPagesTests.user,
-            author=PostsPagesTests.user_to_follow
-        )
-        response = self.authorized_client.get(URL_FOLLOW_INDEX_PAGE)
-        post = response.context['page_obj'][0]
-        self.assertIn(following_post, response.context['page_obj'])
-        self.assertEqual(post.author, following_post.author)
-        self.assertEqual(post.text, following_post.text)
-        self.assertEqual(post.group, following_post.group)
-        self.assertEqual(post.id, following_post.pk)
-        response = self.not_follower_client.get(URL_FOLLOW_INDEX_PAGE)
 
     def test_unfollow(self):
         Follow.objects.create(
             user=PostsPagesTests.user,
-            author=PostsPagesTests.user_to_follow
+            author=PostsPagesTests.another_user
         )
-        self.authorized_client.get(URL_PROFILE_UNFOLLOW_PAGE)
+        self.author.get(URL_PROFILE_UNFOLLOW_PAGE)
         self.assertFalse(
             Follow.objects.filter(
-                author=PostsPagesTests.user_to_follow,
+                author=PostsPagesTests.another_user,
                 user=PostsPagesTests.user
             ).exists()
         )
+
+    def test_follow(self):
+        self.author.get(URL_PROFILE_FOLLOW_PAGE)
+        self.assertTrue(
+            Follow.objects.filter(
+                author=PostsPagesTests.another_user,
+                user=PostsPagesTests.user
+            ).exists()
+        )
+
+    def test_follow_page(self):
+        Follow.objects.create(
+            author=PostsPagesTests.user,
+            user=PostsPagesTests.another_user
+        )
+        response = self.another.get(URL_FOLLOW_INDEX_PAGE)
+        post = response.context['page_obj'][0]
+        self.asserts(post)
