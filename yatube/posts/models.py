@@ -12,7 +12,7 @@ class Group(models.Model):
         verbose_name='Заголовок'
     )
     slug = models.SlugField(
-        unique=True, verbose_name='ссылка на страницу группы'
+        unique=True, verbose_name='уникальный идентификатор'
     )
     description = models.TextField(verbose_name='Описание')
 

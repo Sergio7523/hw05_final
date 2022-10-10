@@ -1,7 +1,4 @@
-import random
-
 import shutil
-
 import tempfile
 
 from django.conf import settings
@@ -82,7 +79,6 @@ class PostsPagesTests(TestCase):
             slug=GROUP2_SLUG,
             description='Тестовое описание2',
         )
-
         cls.uploaded = SimpleUploadedFile(
             name='small.gif',
             content=SMALL_GIF,
@@ -117,7 +113,6 @@ class PostsPagesTests(TestCase):
 
     def test_index_shows_correct_context(self):
         """Шаблон index сформирован с правильным контекстом."""
-
         response = self.author.get(URL_INDEX_PAGE)
         self.assertEqual(len(response.context['page_obj']), 1)
         first_object = response.context['page_obj'][0]
@@ -125,7 +120,6 @@ class PostsPagesTests(TestCase):
 
     def test_group_list_shows_correct_context(self):
         """Шаблон group_list сформирован с правильным контекстом."""
-
         response = self.author.get(URL_GROUP_LIST_PAGE)
         self.assertEqual(len(response.context['page_obj']), 1)
         post = response.context['page_obj'][0]
@@ -133,7 +127,6 @@ class PostsPagesTests(TestCase):
 
     def test_profile_shows_correct_context(self):
         """Шаблон profile сформирован с правильным контекстом."""
-
         response = self.author.get(URL_PROFILE_PAGE)
         self.assertEqual(len(response.context['page_obj']), 1)
         post = response.context['page_obj'][0]
@@ -141,7 +134,6 @@ class PostsPagesTests(TestCase):
 
     def test_post_detail_shows_correct_context(self):
         """Шаблон post_detail сформирован с правильным контекстом."""
-
         response = self.author.get(PostsPagesTests.POST_DETAIL_PAGE)
         post = response.context['post']
         self.asserts(post)
@@ -150,7 +142,6 @@ class PostsPagesTests(TestCase):
         """Новый пост не появляется на странице не своей группы
         и в ленте пользователя, не подписанного на автора.
         """
-
         following_post = Post.objects.create(
             author=PostsPagesTests.another_user,
             text='Отслеживаемый пост',
@@ -163,16 +154,7 @@ class PostsPagesTests(TestCase):
 
     def test_post_amount_on_pages_with_paginator(self):
         """Кол-во постов на страницах с паджинатором."""
-
-        possible_posts_amount_on_second_page = [
-            i for i in range(1, settings.POSTS_AMOUNT + 1)
-        ]
-        second_page_posts_amount = random.choice(
-            possible_posts_amount_on_second_page
-        )
-
-        AMOUNT_OF_POSTS = settings.POSTS_AMOUNT + second_page_posts_amount
-
+        AMOUNT_OF_POSTS = settings.POSTS_AMOUNT + 1
         post = Post(
             author=PostsPagesTests.user,
             text='Тестовый пост',
@@ -187,9 +169,6 @@ class PostsPagesTests(TestCase):
         )
         posts_count = Post.objects.all().count()
         posts_amount_on_second_page = posts_count - settings.POSTS_AMOUNT
-        if posts_amount_on_second_page >= settings.POSTS_AMOUNT:
-            posts_amount_on_second_page = settings.POSTS_AMOUNT
-
         pages_list = [
             [URL_INDEX_PAGE, settings.POSTS_AMOUNT],
             [SECOND_INDEX_PAGE_URL, posts_amount_on_second_page],
@@ -247,5 +226,6 @@ class PostsPagesTests(TestCase):
             user=PostsPagesTests.another_user
         )
         response = self.another.get(URL_FOLLOW_INDEX_PAGE)
+        self.assertEqual(len(response.context['page_obj']), 1)
         post = response.context['page_obj'][0]
         self.asserts(post)
