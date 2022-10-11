@@ -154,6 +154,7 @@ class PostsPagesTests(TestCase):
 
     def test_post_amount_on_pages_with_paginator(self):
         """Кол-во постов на страницах с паджинатором."""
+        Post.objects.all().delete()
         AMOUNT_OF_POSTS = settings.POSTS_AMOUNT + 1
         post = Post(
             author=PostsPagesTests.user,
@@ -167,17 +168,16 @@ class PostsPagesTests(TestCase):
             user=PostsPagesTests.another_user,
             author=PostsPagesTests.user
         )
-        posts_count = Post.objects.all().count()
-        posts_amount_on_second_page = posts_count - settings.POSTS_AMOUNT
+        POSTS_AMOUNT_ON_SECOND_PAGE = 1
         pages_list = [
             [URL_INDEX_PAGE, settings.POSTS_AMOUNT],
-            [SECOND_INDEX_PAGE_URL, posts_amount_on_second_page],
+            [SECOND_INDEX_PAGE_URL, POSTS_AMOUNT_ON_SECOND_PAGE],
             [URL_PROFILE_PAGE, settings.POSTS_AMOUNT],
-            [SECOND_PROFILE_PAGE_URL, posts_amount_on_second_page],
+            [SECOND_PROFILE_PAGE_URL, POSTS_AMOUNT_ON_SECOND_PAGE],
             [URL_GROUP_LIST_PAGE, settings.POSTS_AMOUNT],
-            [SECOND_GROUP_LIST_PAGE_URL, posts_amount_on_second_page],
+            [SECOND_GROUP_LIST_PAGE_URL, POSTS_AMOUNT_ON_SECOND_PAGE],
             [URL_FOLLOW_INDEX_PAGE, settings.POSTS_AMOUNT],
-            [SECOND_FOLLOW_INDEX_PAGE_URL, posts_amount_on_second_page]
+            [SECOND_FOLLOW_INDEX_PAGE_URL, POSTS_AMOUNT_ON_SECOND_PAGE]
         ]
         for url, posts_on_page in pages_list:
             with self.subTest(url=url):

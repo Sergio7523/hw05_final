@@ -147,6 +147,7 @@ class PostCreateFormTests(TestCase):
         )
 
     def test_guest_client_and_not_author_can_not_edit_post(self):
+        post_before_edit = Post.objects.get(id=PostCreateFormTests.post.id)
         clients_list = [self.guest_client, self.another_client]
         for client in clients_list:
             client.post(
@@ -155,26 +156,11 @@ class PostCreateFormTests(TestCase):
                 follow=True
             )
             post = Post.objects.get(id=PostCreateFormTests.post.id)
-            self.assertNotEqual(
-                post.text, PostCreateFormTests.form_data_edit['text']
-            )
-            self.assertNotEqual(
-                post.group.id, PostCreateFormTests.form_data_edit['group']
-            )
-            self.assertEqual(post.author, PostCreateFormTests.user)
-            self.assertNotEqual(
-                post.image,
-                (f'{Post._meta.get_field("image").upload_to}/'
-                 f'{PostCreateFormTests.form_data_edit["image"]}')
-            )
-            self.assertFalse(
-                Post.objects.filter(
-                    text=PostCreateFormTests.form_data_edit['text'],
-                    group=PostCreateFormTests.form_data_edit['group'],
-                    author=PostCreateFormTests.post.author,
-                    image=PostCreateFormTests.form_data_edit["image"]
-                ).exists()
-            )
+            self.assertEqual(post.text, post_before_edit.text)
+            self.assertEqual(post.group.id, post_before_edit.group.id)
+            self.assertEqual(post.author, post_before_edit.author)
+            self.assertEqual(post.image, post_before_edit.image)
+
         cases = [
             [
                 self.guest_client,
