@@ -66,9 +66,7 @@ class PostsURLTests(TestCase):
         cls.other_client = Client()
         cls.other_client.force_login(cls.not_author)
 
-    def test_public_urls_accessible_for_all_private_for_authorized_users(self):
-        """Общедоступные cnраницы доступны любому пользователю, а
-        приватные только авторизованному."""
+    def test_all_urls_use_correct_access_auth(self):
         cases = [
             [self.guest_client, URL_INDEX_PAGE, HTTPStatus.OK],
             [self.guest_client, URL_GROUP_LIST_PAGE, HTTPStatus.OK],

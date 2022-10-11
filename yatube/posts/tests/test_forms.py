@@ -10,10 +10,14 @@ from django.urls import reverse
 from posts.models import Comment, Group, Post, User
 
 USER_USERNAME = 'TestUser'
+ANOTHER_USER_USERNAME = 'TestUser2'
+GROUP1_SLUG = 'test-slug'
+GROUP2_SLUG = 'test-slug2'
 URL_PROFILE_PAGE = reverse('posts:profile', args=[USER_USERNAME])
 URL_LOGIN_PAGE = reverse('users:login')
 URL_POST_CREATE_PAGE = reverse('posts:post_create')
 URL_REDIRECT_POST_CREATE_PAGE = f'{URL_LOGIN_PAGE}?next={URL_POST_CREATE_PAGE}'
+UPLOAD_TO = Post._meta.get_field("image").upload_to
 
 
 SMALL_GIF = (
@@ -36,16 +40,18 @@ class PostCreateFormTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user = User.objects.create_user(username='TestUser')
-        cls.another_user = User.objects.create_user(username='TestUser2')
+        cls.user = User.objects.create_user(username=USER_USERNAME)
+        cls.another_user = User.objects.create_user(
+            username=ANOTHER_USER_USERNAME
+        )
         cls.group = Group.objects.create(
             title='Тестовая группа',
-            slug='test-slug',
+            slug=GROUP1_SLUG,
             description='Тестовое описание',
         )
         cls.group2 = Group.objects.create(
             title='Тестовая группа2',
-            slug='test-slug2',
+            slug=GROUP2_SLUG,
             description='Тестовое описание2',
         )
         cls.uploaded = SimpleUploadedFile(
@@ -104,7 +110,7 @@ class PostCreateFormTests(TestCase):
         )
         post_list = Post.objects.all()
         self.assertEqual(len(post_list), 1)
-        post = Post.objects.latest('pk')
+        post = post_list.latest('pk')
         self.assertEqual(
             post.text, PostCreateFormTests.post_form_data['text']
         )
@@ -112,10 +118,7 @@ class PostCreateFormTests(TestCase):
             post.group.id, PostCreateFormTests.post_form_data['group']
         )
         self.assertEqual(post.author, PostCreateFormTests.user)
-        self.assertEqual(
-            post.image,
-            f'{Post._meta.get_field("image").upload_to}{IMAGE_NAME}'
-        )
+        self.assertEqual(post.image, f'{UPLOAD_TO}{IMAGE_NAME}')
         self.assertRedirects(response, URL_PROFILE_PAGE)
 
     def test_guest_client_can_not_create_post(self):
@@ -142,42 +145,27 @@ class PostCreateFormTests(TestCase):
         self.assertEqual(post.author, PostCreateFormTests.post.author)
         self.assertEqual(
             post.image,
-            (f'{Post._meta.get_field("image").upload_to}'
-             f'{PostCreateFormTests.form_data_edit["image"]}')
+            f'{UPLOAD_TO}{PostCreateFormTests.form_data_edit["image"]}'
         )
 
     def test_guest_client_and_not_author_can_not_edit_post(self):
-        post_before_edit = Post.objects.get(id=PostCreateFormTests.post.id)
-        clients_list = [self.guest_client, self.another_client]
-        for client in clients_list:
-            client.post(
-                PostCreateFormTests.URL_POST_EDIT_PAGE,
-                data=PostCreateFormTests.form_data_edit,
-                follow=True
-            )
-            post = Post.objects.get(id=PostCreateFormTests.post.id)
-            self.assertEqual(post.text, post_before_edit.text)
-            self.assertEqual(post.group.id, post_before_edit.group.id)
-            self.assertEqual(post.author, post_before_edit.author)
-            self.assertEqual(post.image, post_before_edit.image)
-
-        cases = [
-            [
-                self.guest_client,
-                PostCreateFormTests.URL_POST_EDIT_PAGE,
-                PostCreateFormTests.URL_REDIRECT_POST_EDIT_PAGE
-            ],
-            [
-                self.another_client,
-                PostCreateFormTests.URL_POST_EDIT_PAGE,
-                PostCreateFormTests.URL_POST_DETAIL_PAGE
-            ]
+        post_before_edit = PostCreateFormTests.post
+        cases1 = [
+            [self.guest_client, self.URL_REDIRECT_POST_EDIT_PAGE],
+            [self.another_client, self.URL_POST_DETAIL_PAGE]
         ]
-        for client, url, redirect_url in cases:
-            with self.subTest(
-                client=client, url=url, redirect_url=redirect_url
-            ):
-                response = client.get(url)
+        for client, redirect_url in cases1:
+            with self.subTest(client=client, redirect_url=redirect_url):
+                response = client.post(
+                    PostCreateFormTests.URL_POST_EDIT_PAGE,
+                    data=PostCreateFormTests.form_data_edit,
+                    follow=True
+                )
+                post = Post.objects.get(id=PostCreateFormTests.post.id)
+                self.assertEqual(post.text, post_before_edit.text)
+                self.assertEqual(post.group.id, post_before_edit.group.id)
+                self.assertEqual(post.author, post_before_edit.author)
+                self.assertEqual(post.image, post_before_edit.image)
                 self.assertRedirects(response, redirect_url)
 
     def test_create_edit_posts_show_correct_form(self):
@@ -193,22 +181,23 @@ class PostCreateFormTests(TestCase):
             'image': forms.fields.ImageField
         }
         for url in url_list:
-            for value, expected in form_fields.items():
-                response = self.authorized_client.get(url)
-                form_field = (
-                    response.context.get('form').fields.get(value)
-                )
-                self.assertIsInstance(form_field, expected)
+            with self.subTest(url=url):
+                for value, expected in form_fields.items():
+                    response = self.authorized_client.get(url)
+                    form_field = (
+                        response.context.get('form').fields.get(value)
+                    )
+                    self.assertIsInstance(form_field, expected)
 
 
 class PostCreateCommentTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user = User.objects.create_user(username='TestUser')
+        cls.user = User.objects.create_user(username=USER_USERNAME)
         cls.group = Group.objects.create(
             title='Тестовая группа',
-            slug='test-slug',
+            slug=GROUP1_SLUG,
             description='Тестовое описание',
         )
         cls.post = Post.objects.create(
@@ -238,7 +227,7 @@ class PostCreateCommentTests(TestCase):
         )
         comments_list = Comment.objects.all()
         self.assertEqual(len(comments_list), 1)
-        comment = Comment.objects.latest('pk')
+        comment = comments_list.latest('pk')
         self.assertEqual(
             comment.text, PostCreateCommentTests.comment_data['text']
         )

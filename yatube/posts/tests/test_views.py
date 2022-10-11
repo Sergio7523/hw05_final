@@ -11,43 +11,27 @@ from ..models import Follow, Group, Post, User
 
 
 GROUP_SLUG = 'test-slug'
-
 GROUP2_SLUG = 'test-slug2'
-
 USER_USERNAME = 'TestUser'
-
 ANOTHER_USER_USERNAME = 'TestUser2'
-
 URL_GROUP_LIST_PAGE = reverse('posts:group_list', kwargs={'slug': GROUP_SLUG})
-
 URL_GROUP2_LIST_PAGE = reverse(
     'posts:group_list', kwargs={'slug': GROUP2_SLUG}
 )
-
 URL_INDEX_PAGE = reverse('posts:index')
-
 SECOND_INDEX_PAGE_URL = f'{URL_INDEX_PAGE}/?page=2'
-
 SECOND_GROUP_LIST_PAGE_URL = f'{URL_GROUP_LIST_PAGE}?page=2'
-
 URL_POST_CREATE_PAGE = reverse('posts:post_create')
-
 URL_PROFILE_PAGE = reverse('posts:profile', kwargs={'username': USER_USERNAME})
-
 SECOND_PROFILE_PAGE_URL = f'{URL_PROFILE_PAGE}?page=2'
-
 URL_FOLLOW_INDEX_PAGE = reverse('posts:follow_index')
-
 SECOND_FOLLOW_INDEX_PAGE_URL = f'{URL_FOLLOW_INDEX_PAGE}?page=2'
-
 URL_PROFILE_FOLLOW_PAGE = reverse(
     'posts:profile_follow', kwargs={'username': ANOTHER_USER_USERNAME}
 )
-
 URL_PROFILE_UNFOLLOW_PAGE = reverse(
     'posts:profile_unfollow', kwargs={'username': ANOTHER_USER_USERNAME}
 )
-
 SMALL_GIF = (
     b'\x47\x49\x46\x38\x39\x61\x02\x00'
     b'\x01\x00\x80\x00\x00\x00\x00\x00'
@@ -56,7 +40,6 @@ SMALL_GIF = (
     b'\x02\x00\x01\x00\x00\x02\x02\x0C'
     b'\x0A\x00\x3B'
 )
-
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
 
@@ -168,16 +151,17 @@ class PostsPagesTests(TestCase):
             user=PostsPagesTests.another_user,
             author=PostsPagesTests.user
         )
-        POSTS_AMOUNT_ON_SECOND_PAGE = 1
+        posts_count = Post.objects.all().count()
+        posts_amount_on_second_page = posts_count - settings.POSTS_AMOUNT
         pages_list = [
             [URL_INDEX_PAGE, settings.POSTS_AMOUNT],
-            [SECOND_INDEX_PAGE_URL, POSTS_AMOUNT_ON_SECOND_PAGE],
+            [SECOND_INDEX_PAGE_URL, posts_amount_on_second_page],
             [URL_PROFILE_PAGE, settings.POSTS_AMOUNT],
-            [SECOND_PROFILE_PAGE_URL, POSTS_AMOUNT_ON_SECOND_PAGE],
+            [SECOND_PROFILE_PAGE_URL, posts_amount_on_second_page],
             [URL_GROUP_LIST_PAGE, settings.POSTS_AMOUNT],
-            [SECOND_GROUP_LIST_PAGE_URL, POSTS_AMOUNT_ON_SECOND_PAGE],
+            [SECOND_GROUP_LIST_PAGE_URL, posts_amount_on_second_page],
             [URL_FOLLOW_INDEX_PAGE, settings.POSTS_AMOUNT],
-            [SECOND_FOLLOW_INDEX_PAGE_URL, POSTS_AMOUNT_ON_SECOND_PAGE]
+            [SECOND_FOLLOW_INDEX_PAGE_URL, posts_amount_on_second_page]
         ]
         for url, posts_on_page in pages_list:
             with self.subTest(url=url):
