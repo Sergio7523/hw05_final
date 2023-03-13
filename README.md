@@ -3,7 +3,7 @@ ___
 
 ### *Технологии*
 - Python 3.7
-- Django Django
+- Django
 - SQLite
 
 ___
