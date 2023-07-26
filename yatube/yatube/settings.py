@@ -29,13 +29,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', default='some-secret-key')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    '[::1]',
-    'testserver',
-]
-
+ALLOWED_HOSTS = list(map(str.strip, os.getenv('ALLOWED_HOSTS').split(',')))
 
 # Application definition
 
